@@ -1,13 +1,12 @@
+use argparse::{ArgumentParser, Store};
+use chrono::prelude::*;
+use cli_demo::options;
+use cli_demo::options::Options;
 use std::env;
 use std::path::PathBuf;
 use std::process;
 use std::process::Command;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
-use chrono::prelude::*;
-
-
-use cli_demo;
-use cli_demo::options;
 
 #[allow(dead_code)]
 const BITCOIN_GENESIS: &str = "000000000019d6689c085ae165831e934ff763ae46a2a6c172b3f1b60a8ce26f";
@@ -48,9 +47,10 @@ fn ensure_no_unstaged_changes(repo: &mut git2::Repository) -> Result<(), &'stati
     Ok(())
 }
 
-fn git_init() -> core::result::Result<(), git2::Error> {
+fn git_init(opts: &mut cli_demo::options::Options) -> core::result::Result<(), git2::Error> {
+    println!("opts.message={}", opts.message);
     let now = SystemTime::now();
-    println!("{:?}",now);
+    println!("now={:?}", now);
 
     #[allow(clippy::if_same_then_else)]
     let mut command = Command::new("printenv");
@@ -90,9 +90,7 @@ fn git_init() -> core::result::Result<(), git2::Error> {
         .unwrap();
     println!("git_init:{}", _result);
 
-
-
-   let start = time::get_time();
+    let start = time::get_time();
     let epoch = get_epoch_ms();
     println!("{}", epoch);
     let system_time = SystemTime::now();
@@ -101,8 +99,6 @@ fn git_init() -> core::result::Result<(), git2::Error> {
     println!("{}", datetime.format("%d/%m/%Y %T/%s"));
     println!("{}", datetime.format("%d/%m/%Y %T"));
 
-
-
     let mut git_empty_commit = Command::new("git");
     git_empty_commit
         .args([
@@ -110,6 +106,8 @@ fn git_init() -> core::result::Result<(), git2::Error> {
             "--allow-empty",
             "-m",
             &epoch.to_string(),
+            "-m",
+            &opts.message,
             "--no-gpg-sign",
         ])
         .output()
@@ -123,6 +121,34 @@ fn git_init() -> core::result::Result<(), git2::Error> {
 
     Ok(())
 }
+
+fn parse_args_or_exit(opts: &mut cli_demo::options::Options) {
+    let mut ap = ArgumentParser::new();
+    ap.set_description("a cli-demo");
+    //ap.stop_on_first_argument(false);
+
+    //ap.refer(&mut opts.repo)
+    //    //.add_argument("repository-path", Store, "Path to your git repository (required)");
+    //    .add_argument("repository-path", Store, "Path to your git repository");
+    //    //.required();
+    //ap.refer(&mut opts.repo)
+    //  .add_argument("repository-path", Store, "Path to your git repository");
+
+    ap.refer(&mut opts.repo)
+        .add_option(&["-r", "--repo"], Store, "Path to git repository");
+    //.required();
+
+    ap.refer(&mut opts.message)
+        .add_option(
+            &["-m", "--message"],
+            Store,
+            "Commit message to use (required)",
+        )
+        .required();
+
+    ap.parse_args_or_exit();
+}
+
 fn main() -> core::result::Result<(), git2::Error> {
     let get_pwd = if cfg!(target_os = "windows") {
         Command::new("cmd")
@@ -159,6 +185,11 @@ fn main() -> core::result::Result<(), git2::Error> {
         repo: ".".to_string(),
     };
 
-    let _init_result = git_init();
+    parse_args_or_exit(&mut opts);
+
+    println!("opts.message={}", opts.message);
+    println!("opts.repo={}", opts.repo);
+
+    let _init_result = git_init(&mut opts);
     Ok(())
 }
